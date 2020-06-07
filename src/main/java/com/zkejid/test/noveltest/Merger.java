@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,20 +54,17 @@ public class Merger {
     try (RandomAccessFile raFile1 = new RandomAccessFile(source1Path.toFile(), "r");
         InputStream in = Files.newInputStream(source2Path);
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-        RandomAccessFile outputFile = new RandomAccessFile(outputPath.toFile(), "rw")) {
+        PrintWriter pw = new PrintWriter(Files.newBufferedWriter(outputPath))) {
       String lineId = null;
       String lineValue = null;
       while ((lineId = reader.readLine()) != null && (lineValue = reader.readLine()) != null) {
         if (currentData.containsKey(lineId)) {
-          outputFile.writeBytes(lineId);
-          outputFile.writeBytes(System.lineSeparator());
+          pw.println(lineId);
           final Long firstFilePointer = currentData.get(lineId);
           raFile1.seek(firstFilePointer);
           final String val1 = raFile1.readLine();
-          outputFile.writeBytes(val1);
-          outputFile.writeBytes(System.lineSeparator());
-          outputFile.writeBytes(lineValue);
-          outputFile.writeBytes(System.lineSeparator());
+          pw.println(val1);
+          pw.println(lineValue);
         }
       }
     }
