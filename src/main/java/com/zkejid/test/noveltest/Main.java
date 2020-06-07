@@ -6,10 +6,14 @@ import java.nio.file.Paths;
 public class Main {
 
   public static void main(String[] args) {
+    Path base = Paths.get(".");
+    if (args.length > 0) {
+      base = Paths.get(args[0]);
+    }
 
-    final Path source1Path = Paths.get("source1.txt");
-    final Path source2Path = Paths.get("source2.txt");
-    final Path outputPath = Paths.get("output.txt");
+    final Path source1Path = base.resolve("source1.txt");
+    final Path source2Path = base.resolve("source2.txt");
+    final Path outputPath = base.resolve("output.txt");
 
     Merger m = new Merger(source1Path, source2Path, outputPath);
     m.merge();
