@@ -1,7 +1,11 @@
 package com.zkejid.test.noveltest;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,20 +51,21 @@ public class Merger {
 
   private void readSecondAndWriteOutput() throws IOException {
     try (RandomAccessFile raFile1 = new RandomAccessFile(source1Path.toFile(), "r");
-        RandomAccessFile raFile2 = new RandomAccessFile(source2Path.toFile(), "r");
+        InputStream in = Files.newInputStream(source2Path);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         RandomAccessFile outputFile = new RandomAccessFile(outputPath.toFile(), "rw")) {
-      while (raFile2.getFilePointer() < raFile2.length()) {
-        final String id = raFile2.readLine();
-        final String value = raFile2.readLine();
-        if (currentData.containsKey(id)) {
-          outputFile.writeBytes(id);
+      String lineId = null;
+      String lineValue = null;
+      while ((lineId = reader.readLine()) != null && (lineValue = reader.readLine()) != null) {
+        if (currentData.containsKey(lineId)) {
+          outputFile.writeBytes(lineId);
           outputFile.writeBytes(System.lineSeparator());
-          final Long firstFilePointer = currentData.get(id);
+          final Long firstFilePointer = currentData.get(lineId);
           raFile1.seek(firstFilePointer);
           final String val1 = raFile1.readLine();
           outputFile.writeBytes(val1);
           outputFile.writeBytes(System.lineSeparator());
-          outputFile.writeBytes(value);
+          outputFile.writeBytes(lineValue);
           outputFile.writeBytes(System.lineSeparator());
         }
       }
