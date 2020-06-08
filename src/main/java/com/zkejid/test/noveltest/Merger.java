@@ -1,12 +1,10 @@
 package com.zkejid.test.noveltest;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
@@ -14,7 +12,9 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Merger {
@@ -23,7 +23,7 @@ public class Merger {
   private final Path source2Path;
   private final Path outputPath;
 
-  private final Map<String, Long> currentData;
+  private final Map<Integer, Set<FileEntry>> currentData;
 
   public Merger(Path source1Path, Path source2Path, Path outputPath) {
 
@@ -33,11 +33,11 @@ public class Merger {
     this.currentData = new ConcurrentHashMap<>();
   }
 
-  public void merge() {
+  public void merge(int bufferSize) {
 
     try {
-      readFirst();
-      readSecondAndWriteOutput();
+      readFirst(bufferSize);
+      readSecondAndWriteOutput(bufferSize);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -46,14 +46,15 @@ public class Merger {
   // TODO какой чарсет у файлов?
   // TODO как обрабатывать пробельные строки?
   // TODO какие могут быть переводы строки?
-  private void readFirst() throws IOException {
+  private void readFirst(int bufferSize) throws IOException {
 
-    ByteBuffer buf = ByteBuffer.allocateDirect(256);
+    ByteBuffer buf = ByteBuffer.allocateDirect(bufferSize);
     Charset cs = StandardCharsets.ISO_8859_1;
     try (FileChannel fc = FileChannel.open(source1Path)) {
 
       String id = null;
 
+      long previousLinePoint = 0;
       long totalReadBytes = 0;
       int readBytes;
       StringBuilder sb = new StringBuilder();
@@ -79,12 +80,18 @@ public class Merger {
 
             if (id == null) {
               id = line;
-              final Long oldVal = currentData.put(id, totalReadBytes);
-              assert oldVal == null : "not unique id: " + id;
+              final int hashCode = id.hashCode();
+              currentData.computeIfAbsent(
+                  hashCode,
+                  (k) -> new HashSet<>()
+              ).add(new FileEntry(previousLinePoint, totalReadBytes, hashCode));
             } else {
               id = null;
             }
+            previousLinePoint = totalReadBytes;
           }
+          sb.append(currentChunk);
+          totalReadBytes += currentChunk.length();
         } else {
           sb.append(currentChunk);
           totalReadBytes += readBytes;
@@ -93,9 +100,9 @@ public class Merger {
     }
   }
 
-  private void readSecondAndWriteOutput() throws IOException {
+  private void readSecondAndWriteOutput(int bufferSize) throws IOException {
 
-    ByteBuffer buf = ByteBuffer.allocateDirect(256);
+    ByteBuffer buf = ByteBuffer.allocateDirect(bufferSize);
     Charset cs = StandardCharsets.ISO_8859_1;
     try (FileChannel fc = FileChannel.open(source1Path);
         InputStream in = Files.newInputStream(source2Path);
@@ -104,15 +111,32 @@ public class Merger {
       String lineId = null;
       String lineValue = null;
       while ((lineId = reader.readLine()) != null && (lineValue = reader.readLine()) != null) {
-        if (currentData.containsKey(lineId)) {
+        final int hashCode = lineId.hashCode();
+        if (currentData.containsKey(hashCode)) {
           pw.println(lineId);
-          final Long firstFilePointer = currentData.get(lineId);
-          final String val1 = readOneLine(fc, firstFilePointer, buf, cs);
+          final Set<FileEntry> fileEntries = currentData.get(hashCode);
+          final String val1 = getValue(buf, cs, fc, fileEntries, lineId);
           pw.println(val1);
           pw.println(lineValue);
         }
       }
     }
+  }
+
+  private String getValue(ByteBuffer buf, Charset cs, FileChannel fc,
+      Set<FileEntry> fileEntries, String lineId) throws IOException {
+    long firstFilePointer = -1;
+    for (FileEntry fileEntry : fileEntries) {
+      final String currentId = readOneLine(fc, fileEntry.getIdPoint(), buf, cs);
+      if (lineId.equals(currentId)) {
+        firstFilePointer = fileEntry.getValuePoint();
+        break;
+      }
+    }
+    if (firstFilePointer == -1) {
+      throw new RuntimeException("Id not found: " + lineId);
+    }
+    return readOneLine(fc, firstFilePointer, buf, cs);
   }
 
   private String readOneLine(
@@ -142,5 +166,31 @@ public class Merger {
       }
     }
     return sb.toString();
+  }
+
+  private static class FileEntry {
+
+    private final long idPoint;
+    private final long valuePoint;
+    private final int idHash;
+
+    public FileEntry(long idPoint, long valuePoint, int idHash) {
+
+      this.idPoint = idPoint;
+      this.valuePoint = valuePoint;
+      this.idHash = idHash;
+    }
+
+    public long getIdPoint() {
+      return idPoint;
+    }
+
+    public long getValuePoint() {
+      return valuePoint;
+    }
+
+    public int getIdHash() {
+      return idHash;
+    }
   }
 }

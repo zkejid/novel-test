@@ -7,8 +7,10 @@ public class Main {
 
   public static void main(String[] args) {
     Path base = Paths.get(".");
+    int bufferSize = 256;
     if (args.length > 0) {
       base = Paths.get(args[0]);
+      bufferSize = Integer.parseInt(args[1]);
     }
 
     final Path source1Path = base.resolve("source1.txt");
@@ -16,6 +18,6 @@ public class Main {
     final Path outputPath = base.resolve("output.txt");
 
     Merger m = new Merger(source1Path, source2Path, outputPath);
-    m.merge();
+    m.merge(bufferSize);
   }
 }

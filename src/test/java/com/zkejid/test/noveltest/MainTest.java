@@ -13,7 +13,7 @@ class MainTest {
   Path tmpDirectory;
 
   @Test
-  void merge() throws Exception {
+  void merge_passInOneBufferRead() throws Exception {
     final Path source1Path = Files.createFile(tmpDirectory.resolve("source1.txt"));
     final Path source2Path = Files.createFile(tmpDirectory.resolve("source2.txt"));
 
@@ -36,7 +36,46 @@ class MainTest {
         "bar1"
     );
 
-    Main.main(new String[] {tmpDirectory.toFile().getAbsolutePath()});
+    Main.main(new String[] {tmpDirectory.toFile().getAbsolutePath(), "256"});
+
+    final byte[] bytes = Files.readAllBytes(tmpDirectory.resolve("output.txt"));
+    String value = new String(bytes);
+    String expected =
+        "@four\n"
+            + "bar1\n"
+            + "foo1\n"
+            + "@six\n"
+            + "baz1\n"
+            + "bar1\n";
+
+    Assertions.assertEquals(expected, value);
+  }
+
+  @Test
+  void merge_passInSeveralBufferReads() throws Exception {
+    final Path source1Path = Files.createFile(tmpDirectory.resolve("source1.txt"));
+    final Path source2Path = Files.createFile(tmpDirectory.resolve("source2.txt"));
+
+    write(
+        source1Path,
+        "@one",
+        "foo1",
+        "@six",
+        "baz1",
+        "@four",
+        "bar1"
+    );
+    write(
+        source2Path,
+        "@four",
+        "foo1",
+        "@two",
+        "baz1",
+        "@six",
+        "bar1"
+    );
+
+    Main.main(new String[] {tmpDirectory.toFile().getAbsolutePath(), "4"});
 
     final byte[] bytes = Files.readAllBytes(tmpDirectory.resolve("output.txt"));
     String value = new String(bytes);
