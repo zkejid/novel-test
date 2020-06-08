@@ -10,7 +10,6 @@ public class Load {
 
   public static void main(String[] args) {
     Cleaner.main(new String[0]);
-    // ~ 10 Gb file
     System.out.println("Generate " + PAIRS_COUNT + " pairs id-value in each of two input files.");
     Generator.main(new String[] {PAIRS_COUNT});
     System.out.println("Generation done.");
