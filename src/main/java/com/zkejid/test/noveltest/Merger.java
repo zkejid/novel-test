@@ -1,11 +1,17 @@
 package com.zkejid.test.noveltest;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -37,15 +43,51 @@ public class Merger {
   }
 
   // TODO какой чарсет у файлов?
+  // TODO как обрабатывать пробельные строки?
+  // TODO какие могут быть переводы строки?
   private void readFirst() throws IOException {
-    try (RandomAccessFile raFile = new RandomAccessFile(source1Path.toFile(), "r")) {
-      while (raFile.getFilePointer() < raFile.length()) {
-        final String id = raFile.readLine();
-        final long filePointer = raFile.getFilePointer();
-        // skip
-        raFile.readLine();
-        final Long oldVal = currentData.put(id, filePointer);
-        assert oldVal == null : "not unique id: " + id;
+    ByteBuffer buf = ByteBuffer.allocateDirect(256);
+    Charset cs = StandardCharsets.ISO_8859_1;
+    try (FileChannel fc = FileChannel.open(source1Path);
+        RandomAccessFile raFile = new RandomAccessFile(source1Path.toFile(), "r")) {
+
+      String id = null;
+
+      long totalReadBytes = 0;
+      int readBytes;
+      StringBuilder sb = new StringBuilder();
+
+      while ((readBytes = fc.read(buf)) != -1) {
+        buf.rewind();
+        final CharBuffer decoded = cs.decode(buf);
+        String currentChunk = decoded.toString();
+        buf.clear();
+
+        int indexOf = currentChunk.indexOf("\n");
+        if (indexOf != -1) {
+          String line = null;
+          while (indexOf != -1) {
+            sb.append(currentChunk, 0, indexOf);
+            // substring + new line character
+            totalReadBytes += indexOf + 1;
+
+            currentChunk = currentChunk.substring(indexOf + 1);
+            indexOf = currentChunk.indexOf("\n");
+            line = sb.toString();
+            sb = new StringBuilder();
+
+            if (id == null) {
+              id = line;
+              final Long oldVal = currentData.put(id, totalReadBytes);
+              assert oldVal == null : "not unique id: " + id;
+            } else {
+              id = null;
+            }
+          }
+        } else {
+          sb.append(currentChunk);
+          totalReadBytes += readBytes;
+        }
       }
     }
   }
