@@ -19,9 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Merger {
 
+  public static final int MEGABYTE = 1024 * 1024;
   private final Path source1Path;
   private final Path source2Path;
   private final Path outputPath;
+  private final Instrumentation instrumentation;
 
   private final Map<Integer, Set<FileEntry>> currentData;
 
@@ -31,13 +33,18 @@ public class Merger {
     this.source2Path = source2Path;
     this.outputPath = outputPath;
     this.currentData = new ConcurrentHashMap<>();
+    this.instrumentation = new Instrumentation();
   }
 
   public void merge(int bufferSize) {
 
     try {
+      System.out.println("Read input file 1");
       readFirst(bufferSize);
+      System.out.println("Reading finished");
+      System.out.println("Match with file 2 and fill output file");
       readSecondAndWriteOutput(bufferSize);
+      System.out.println("Matching done, output file created");
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -47,7 +54,7 @@ public class Merger {
   // TODO как обрабатывать пробельные строки?
   // TODO какие могут быть переводы строки?
   private void readFirst(int bufferSize) throws IOException {
-
+    instrumentation.startMetric();
     ByteBuffer buf = ByteBuffer.allocateDirect(bufferSize);
     Charset cs = StandardCharsets.ISO_8859_1;
     try (FileChannel fc = FileChannel.open(source1Path)) {
@@ -96,6 +103,7 @@ public class Merger {
           sb.append(currentChunk);
           totalReadBytes += readBytes;
         }
+        instrumentation.readFile(totalReadBytes);
       }
     }
   }
@@ -191,6 +199,24 @@ public class Merger {
 
     public int getIdHash() {
       return idHash;
+    }
+  }
+
+  private static class Instrumentation {
+
+    private long start;
+
+    public void startMetric() {
+      start = System.nanoTime();
+    }
+    public void readFile(long currentPosition) {
+      if (currentPosition % (10 * MEGABYTE) == 0) {
+        final long end = System.nanoTime();
+        final double duration = end - start;
+        final double speed = ((double) (10 * MEGABYTE)) / (duration / 1_000_000_000);
+        System.out.println("10 Mb read. Speed (Mb/s): " + (speed / MEGABYTE));
+        start = end;
+      }
     }
   }
 }

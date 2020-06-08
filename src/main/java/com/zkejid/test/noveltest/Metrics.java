@@ -2,24 +2,24 @@ package com.zkejid.test.noveltest;
 
 public class Metrics {
 
+  public static final int RETRY_COUNT = 10;
+
   public static void main(String[] args) {
     Cleaner.main(new String[0]);
     Generator.main(new String[] {"10000"});
     // Warm up
     doStuff();
 
-    long sum = 0;
-    for (int i = 0; i < 10; i ++) {
+    double sum = 0;
+    for (int i = 0; i < RETRY_COUNT; i ++) {
       final long current = doStuff();
       sum += current;
-      System.out.println("corrent score " + current);
+      System.out.println("current score (ns): " + current);
     }
 
     Cleaner.main(args);
-    System.out.println("Average time: " + (sum / 10) + " nanos or "
-        + (sum / 10_000) + " millis or "
-        + (sum / 10_000_000) + " millis or "
-        + (sum / 10_000_000_000L) + " seconds");
+    System.out.println("Average processing time: "
+        + (sum / (RETRY_COUNT * 1_000_000_000L)) + " seconds");
   }
 
   private static long doStuff() {

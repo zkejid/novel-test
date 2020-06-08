@@ -86,7 +86,17 @@ public class Generator {
   public static class ValueGenerator {
 
     public String getValue() {
-      return UUID.randomUUID().toString();
+      return
+          UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString()
+              + UUID.randomUUID().toString();
     }
   }
 }
