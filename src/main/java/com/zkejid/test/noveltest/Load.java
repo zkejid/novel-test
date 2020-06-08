@@ -1,8 +1,7 @@
 package com.zkejid.test.noveltest;
 
 /**
- * <h1>Load test result</h1>
- * <p>Memory footprint ~ 250 byte per id-value pair in a heap.</p>
+ * Запуск нагрузочного теста.
  */
 public class Load {
 

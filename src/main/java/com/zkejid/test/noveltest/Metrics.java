@@ -1,5 +1,8 @@
 package com.zkejid.test.noveltest;
 
+/**
+ * Расчёт примерной усреднённой производительности.
+ */
 public class Metrics {
 
   public static final int RETRY_COUNT = 10;

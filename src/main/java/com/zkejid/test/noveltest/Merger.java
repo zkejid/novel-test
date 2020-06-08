@@ -17,6 +17,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Класс логики приложения. Выполняет чтение файла в память, сравнение прочитанного со значениями
+ * из второго файла и вывод пересечения записей в файл вывода.
+ */
 public class Merger {
 
   public static final int MEGABYTE = 1024 * 1024;
@@ -36,6 +40,9 @@ public class Merger {
     this.instrumentation = new Instrumentation();
   }
 
+  /**
+   * Основной метод алгоритма. Аргумент - размер буфера при работе с файлами.
+   */
   public void merge(int bufferSize) {
 
     try {
@@ -43,7 +50,7 @@ public class Merger {
       readFirst(bufferSize);
       System.out.println("Reading finished");
       System.out.println("Match with file 2 and fill output file");
-      readSecondAndWriteOutput(bufferSize);
+      readSecondFileAndWriteOutput(bufferSize);
       System.out.println("Matching done, output file created");
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -58,57 +65,63 @@ public class Merger {
     ByteBuffer buf = ByteBuffer.allocateDirect(bufferSize);
     Charset cs = StandardCharsets.ISO_8859_1;
     try (FileChannel fc = FileChannel.open(source1Path)) {
-
-      String id = null;
+      // first line is id
+      Boolean isId = true;
 
       long previousLinePoint = 0;
-      long totalReadBytes = 0;
-      int readBytes;
-      StringBuilder sb = new StringBuilder();
+      long totalReadBytesCount = 0;
+      int readBytesCount;
+      StringBuilder headOfCurrentLine = new StringBuilder();
 
-      while ((readBytes = fc.read(buf)) != -1) {
-        buf.rewind();
-        final CharBuffer decoded = cs.decode(buf);
-        String currentChunk = decoded.toString();
-        buf.clear();
-
+      while ((readBytesCount = fc.read(buf)) != -1) {
+        String currentChunk = convertBytesToString(buf, cs);
         int indexOf = currentChunk.indexOf("\n");
+        // if chunk of data contains line end (one or more)
         if (indexOf != -1) {
-          String line = null;
+          String line;
           while (indexOf != -1) {
-            sb.append(currentChunk, 0, indexOf);
-            // substring + new line character
-            totalReadBytes += indexOf + 1;
-
+            // append tail to head
+            headOfCurrentLine.append(currentChunk, 0, indexOf);
+            // count substring + new line character
+            totalReadBytesCount += indexOf + 1;
+            // remove processed tail from chunk
             currentChunk = currentChunk.substring(indexOf + 1);
             indexOf = currentChunk.indexOf("\n");
-            line = sb.toString();
-            sb = new StringBuilder();
+            line = headOfCurrentLine.toString();
+            headOfCurrentLine = new StringBuilder();
 
-            if (id == null) {
-              id = line;
-              final int hashCode = id.hashCode();
+            if (isId) {
+              isId = false;
+              final int hashCode = line.hashCode();
               currentData.computeIfAbsent(
                   hashCode,
                   (k) -> new HashSet<>()
-              ).add(new FileEntry(previousLinePoint, totalReadBytes, hashCode));
+              ).add(new FileEntry(previousLinePoint, totalReadBytesCount));
             } else {
-              id = null;
+              isId = true;
             }
-            previousLinePoint = totalReadBytes;
+            previousLinePoint = totalReadBytesCount;
           }
-          sb.append(currentChunk);
-          totalReadBytes += currentChunk.length();
+          headOfCurrentLine.append(currentChunk);
+          totalReadBytesCount += currentChunk.length();
         } else {
-          sb.append(currentChunk);
-          totalReadBytes += readBytes;
+          headOfCurrentLine.append(currentChunk);
+          totalReadBytesCount += readBytesCount;
         }
-        instrumentation.readFile(totalReadBytes);
+        instrumentation.readFile(totalReadBytesCount);
       }
     }
   }
 
-  private void readSecondAndWriteOutput(int bufferSize) throws IOException {
+  private String convertBytesToString(ByteBuffer buf, Charset cs) {
+    buf.rewind();
+    final CharBuffer decoded = cs.decode(buf);
+    String currentChunk = decoded.toString();
+    buf.clear();
+    return currentChunk;
+  }
+
+  private void readSecondFileAndWriteOutput(int bufferSize) throws IOException {
 
     ByteBuffer buf = ByteBuffer.allocateDirect(bufferSize);
     Charset cs = StandardCharsets.ISO_8859_1;
@@ -116,8 +129,9 @@ public class Merger {
         InputStream in = Files.newInputStream(source2Path);
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         PrintWriter pw = new PrintWriter(Files.newBufferedWriter(outputPath))) {
-      String lineId = null;
-      String lineValue = null;
+
+      String lineId;
+      String lineValue;
       while ((lineId = reader.readLine()) != null && (lineValue = reader.readLine()) != null) {
         final int hashCode = lineId.hashCode();
         if (currentData.containsKey(hashCode)) {
@@ -133,60 +147,49 @@ public class Merger {
 
   private String getValue(ByteBuffer buf, Charset cs, FileChannel fc,
       Set<FileEntry> fileEntries, String lineId) throws IOException {
-    long firstFilePointer = -1;
+    long valueFilePointer = -1;
+    // handle clash of hashes - search given id
     for (FileEntry fileEntry : fileEntries) {
       final String currentId = readOneLine(fc, fileEntry.getIdPoint(), buf, cs);
       if (lineId.equals(currentId)) {
-        firstFilePointer = fileEntry.getValuePoint();
+        valueFilePointer = fileEntry.getValuePoint();
         break;
       }
     }
-    if (firstFilePointer == -1) {
+    if (valueFilePointer == -1) {
       throw new RuntimeException("Id not found: " + lineId);
     }
-    return readOneLine(fc, firstFilePointer, buf, cs);
+    return readOneLine(fc, valueFilePointer, buf, cs);
   }
 
-  private String readOneLine(
-      FileChannel fc,
-      Long point,
-      ByteBuffer buf,
+  private String readOneLine(FileChannel fc, Long point, ByteBuffer buf,
       Charset cs) throws IOException {
 
-    String id = null;
-
-    StringBuilder sb = new StringBuilder();
-
+    StringBuilder headOfLine = new StringBuilder();
     fc.position(point);
     while (fc.read(buf) != -1) {
-      buf.rewind();
-      final CharBuffer decoded = cs.decode(buf);
-      String currentChunk = decoded.toString();
-      buf.clear();
-
+      String currentChunk = convertBytesToString(buf, cs);
       int indexOf = currentChunk.indexOf("\n");
       if (indexOf != -1) {
-        String line = null;
-        sb.append(currentChunk, 0, indexOf);
-        return sb.toString();
+        // append tail to head
+        headOfLine.append(currentChunk, 0, indexOf);
+        return headOfLine.toString();
       } else {
-        sb.append(currentChunk);
+        headOfLine.append(currentChunk);
       }
     }
-    return sb.toString();
+    return headOfLine.toString();
   }
 
   private static class FileEntry {
 
     private final long idPoint;
     private final long valuePoint;
-    private final int idHash;
 
-    public FileEntry(long idPoint, long valuePoint, int idHash) {
+    public FileEntry(long idPoint, long valuePoint) {
 
       this.idPoint = idPoint;
       this.valuePoint = valuePoint;
-      this.idHash = idHash;
     }
 
     public long getIdPoint() {
@@ -196,12 +199,11 @@ public class Merger {
     public long getValuePoint() {
       return valuePoint;
     }
-
-    public int getIdHash() {
-      return idHash;
-    }
   }
 
+  /**
+   * Отображение прогресса при обработке файлов прямого доступа.
+   */
   private static class Instrumentation {
 
     private long start;
@@ -210,11 +212,11 @@ public class Merger {
       start = System.nanoTime();
     }
     public void readFile(long currentPosition) {
-      if (currentPosition % (10 * MEGABYTE) == 0) {
+      if (currentPosition % (100 * MEGABYTE) == 0) {
         final long end = System.nanoTime();
         final double duration = end - start;
-        final double speed = ((double) (10 * MEGABYTE)) / (duration / 1_000_000_000);
-        System.out.println("10 Mb read. Speed (Mb/s): " + (speed / MEGABYTE));
+        final double speed = ((double) (100 * MEGABYTE)) / (duration / 1_000_000_000);
+        System.out.println("100 Mb read. Speed (Mb/s): " + (speed / MEGABYTE));
         start = end;
       }
     }

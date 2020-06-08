@@ -5,8 +5,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * Класс для очистки базового каталога приложения.
+ */
 public class Cleaner {
 
+  /**
+   * Один параметр: true - удаляет только входной файл, false - удаляет все три файла.
+   * По умолчанию - удаляет все три файла.
+   */
   public static void main(String[] args) {
 
     boolean onlyOutput = false;

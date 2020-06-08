@@ -3,8 +3,16 @@ package com.zkejid.test.noveltest;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * Запуск приложения.
+ */
 public class Main {
 
+  /**
+   * Два параметра: базовый каталог с входными и выходными файлами,
+   * размер буфера при работе с файлами. По умолчанию базовый каталог - текущий,
+   * а размер буфера 256 байт.
+   */
   public static void main(String[] args) {
     Path base = Paths.get(".");
     int bufferSize = 256;

@@ -6,8 +6,15 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+/**
+ * Генерирует входные файлы для тестов. Файлы имеют частичное пересечение по идентификаторам.
+ */
 public class Generator {
 
+  /**
+   * Один параметр: количество пар идентификатор - значение. По умолчанию 10 пар. Значение
+   * одно для обоих файлов.
+   */
   public static void main(String[] args) {
     int limit = 10;
     if (args.length > 0) {
@@ -24,45 +31,20 @@ public class Generator {
   }
 
   public void generateFile(String fileName, long limit, int seed) throws FileNotFoundException {
-    final ValueSupplier valueSupplier = new ValueSupplier(seed);
+    final Supplier<String> idSupplier = new IdGenerator(seed);
+    final Supplier<String> valueSupplier = new ValueGenerator();
 
     try (PrintWriter pw = new PrintWriter(fileName)) {
       int count = 0;
       while (count < limit) {
-        // id
-        pw.println(valueSupplier.get());
-        // value
+        pw.println(idSupplier.get());
         pw.println(valueSupplier.get());
         count++;
       }
     }
   }
 
-  public static class ValueSupplier implements Supplier<String> {
-
-    private boolean id;
-    private IdGenerator idGenerator;
-    private ValueGenerator valueGenerator;
-
-    public ValueSupplier(int seed) {
-      idGenerator = new IdGenerator(seed);
-      id = true;
-      valueGenerator = new ValueGenerator();
-    }
-
-    @Override
-    public String get() {
-      if (id) {
-        id = false;
-        return idGenerator.getId();
-      } else {
-        id = true;
-        return valueGenerator.getValue();
-      }
-    }
-  }
-
-  public static class IdGenerator {
+  public static class IdGenerator implements Supplier<String> {
 
     private int count;
     private Random random;
@@ -72,7 +54,8 @@ public class Generator {
       count = 0;
     }
 
-    public String getId() {
+    @Override
+    public String get() {
       final double nextDouble = random.nextDouble();
       if (nextDouble < 0.4) {
         count += 2;
@@ -83,9 +66,10 @@ public class Generator {
     }
   }
 
-  public static class ValueGenerator {
+  public static class ValueGenerator implements Supplier<String> {
 
-    public String getValue() {
+    @Override
+    public String get() {
       return
           UUID.randomUUID().toString()
               + UUID.randomUUID().toString()
