@@ -34,6 +34,7 @@ public class Merger {
   }
 
   public void merge() {
+
     try {
       readFirst();
       readSecondAndWriteOutput();
@@ -46,10 +47,10 @@ public class Merger {
   // TODO как обрабатывать пробельные строки?
   // TODO какие могут быть переводы строки?
   private void readFirst() throws IOException {
+
     ByteBuffer buf = ByteBuffer.allocateDirect(256);
     Charset cs = StandardCharsets.ISO_8859_1;
-    try (FileChannel fc = FileChannel.open(source1Path);
-        RandomAccessFile raFile = new RandomAccessFile(source1Path.toFile(), "r")) {
+    try (FileChannel fc = FileChannel.open(source1Path)) {
 
       String id = null;
 
@@ -93,7 +94,10 @@ public class Merger {
   }
 
   private void readSecondAndWriteOutput() throws IOException {
-    try (RandomAccessFile raFile1 = new RandomAccessFile(source1Path.toFile(), "r");
+
+    ByteBuffer buf = ByteBuffer.allocateDirect(256);
+    Charset cs = StandardCharsets.ISO_8859_1;
+    try (FileChannel fc = FileChannel.open(source1Path);
         InputStream in = Files.newInputStream(source2Path);
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         PrintWriter pw = new PrintWriter(Files.newBufferedWriter(outputPath))) {
@@ -103,12 +107,40 @@ public class Merger {
         if (currentData.containsKey(lineId)) {
           pw.println(lineId);
           final Long firstFilePointer = currentData.get(lineId);
-          raFile1.seek(firstFilePointer);
-          final String val1 = raFile1.readLine();
+          final String val1 = readOneLine(fc, firstFilePointer, buf, cs);
           pw.println(val1);
           pw.println(lineValue);
         }
       }
     }
+  }
+
+  private String readOneLine(
+      FileChannel fc,
+      Long point,
+      ByteBuffer buf,
+      Charset cs) throws IOException {
+
+    String id = null;
+
+    StringBuilder sb = new StringBuilder();
+
+    fc.position(point);
+    while (fc.read(buf) != -1) {
+      buf.rewind();
+      final CharBuffer decoded = cs.decode(buf);
+      String currentChunk = decoded.toString();
+      buf.clear();
+
+      int indexOf = currentChunk.indexOf("\n");
+      if (indexOf != -1) {
+        String line = null;
+        sb.append(currentChunk, 0, indexOf);
+        return sb.toString();
+      } else {
+        sb.append(currentChunk);
+      }
+    }
+    return sb.toString();
   }
 }
