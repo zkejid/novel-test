@@ -29,7 +29,7 @@ public class Merger {
   private final Path outputPath;
   private final Instrumentation instrumentation;
 
-  private final Map<Integer, Set<FileEntry>> currentData;
+  private final Map<String, Long> currentData;
 
   public Merger(Path source1Path, Path source2Path, Path outputPath) {
 
@@ -92,11 +92,7 @@ public class Merger {
 
             if (isId) {
               isId = false;
-              final int hashCode = line.hashCode();
-              currentData.computeIfAbsent(
-                  hashCode,
-                  (k) -> new HashSet<>()
-              ).add(new FileEntry(previousLinePoint, totalReadBytesCount));
+              currentData.put(line, totalReadBytesCount);
             } else {
               isId = true;
             }
@@ -131,35 +127,17 @@ public class Merger {
         PrintWriter pw = new PrintWriter(Files.newBufferedWriter(outputPath))) {
 
       String lineId;
-      String lineValue;
-      while ((lineId = reader.readLine()) != null && (lineValue = reader.readLine()) != null) {
-        final int hashCode = lineId.hashCode();
-        if (currentData.containsKey(hashCode)) {
+      String value2;
+      while ((lineId = reader.readLine()) != null && (value2 = reader.readLine()) != null) {
+        final Long pointer = currentData.get(lineId);
+        if (pointer != null) {
           pw.println(lineId);
-          final Set<FileEntry> fileEntries = currentData.get(hashCode);
-          final String val1 = getValue(buf, cs, fc, fileEntries, lineId);
-          pw.println(val1);
-          pw.println(lineValue);
+          final String value1 = readOneLine(fc, pointer, buf, cs);
+          pw.println(value1);
+          pw.println(value2);
         }
       }
     }
-  }
-
-  private String getValue(ByteBuffer buf, Charset cs, FileChannel fc,
-      Set<FileEntry> fileEntries, String lineId) throws IOException {
-    long valueFilePointer = -1;
-    // handle clash of hashes - search given id
-    for (FileEntry fileEntry : fileEntries) {
-      final String currentId = readOneLine(fc, fileEntry.getIdPoint(), buf, cs);
-      if (lineId.equals(currentId)) {
-        valueFilePointer = fileEntry.getValuePoint();
-        break;
-      }
-    }
-    if (valueFilePointer == -1) {
-      throw new RuntimeException("Id not found: " + lineId);
-    }
-    return readOneLine(fc, valueFilePointer, buf, cs);
   }
 
   private String readOneLine(FileChannel fc, Long point, ByteBuffer buf,
@@ -179,26 +157,6 @@ public class Merger {
       }
     }
     return headOfLine.toString();
-  }
-
-  private static class FileEntry {
-
-    private final long idPoint;
-    private final long valuePoint;
-
-    public FileEntry(long idPoint, long valuePoint) {
-
-      this.idPoint = idPoint;
-      this.valuePoint = valuePoint;
-    }
-
-    public long getIdPoint() {
-      return idPoint;
-    }
-
-    public long getValuePoint() {
-      return valuePoint;
-    }
   }
 
   /**
